@@ -2,7 +2,8 @@ export {
   default as BundleCompiler,
   BundleCompilerOptions,
   BundleCompileOptions,
-  BundleCompilationResult
+  BundleCompilationResult,
+  STDLib
 } from './lib/bundle-compiler';
 
 export {

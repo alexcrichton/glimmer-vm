@@ -9,6 +9,7 @@ import {
 } from '@glimmer/interfaces';
 import { Core, SerializedTemplateBlock } from '@glimmer/wire-format';
 import { Macros } from './syntax';
+import { STDLib } from '@glimmer/bundle-compiler';
 
 export interface EagerResolver<Locator> {
   getCapabilities(locator: Locator): ComponentCapabilities;
@@ -22,7 +23,7 @@ export interface EagerCompilationOptions<Specifier, R extends EagerResolver<Spec
 
 export interface CompilableTemplate<S extends SymbolTable> {
   symbolTable: S;
-  compile(): VMHandle;
+  compile(stdLib?: STDLib): VMHandle;
 }
 
 export type CompilableBlock = CompilableTemplate<BlockSymbolTable>;

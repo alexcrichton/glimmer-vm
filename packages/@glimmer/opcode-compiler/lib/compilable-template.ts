@@ -9,6 +9,7 @@ import { DEBUG } from '@glimmer/local-debug-flags';
 import { debugSlice } from './debug';
 import { CompilableTemplate as ICompilableTemplate, ParsedLayout } from './interfaces';
 import { CompileOptions, statementCompiler, Compilers } from './syntax';
+import { STDLib } from '@glimmer/bundle-compiler';
 
 export { ICompilableTemplate };
 
@@ -30,7 +31,7 @@ export default class CompilableTemplate<S extends SymbolTable, Specifier> implem
     this.statementCompiler = statementCompiler();
   }
 
-  compile(): VMHandle {
+  compile(stdLib?: STDLib): VMHandle {
     let { compiled } = this;
     if (compiled !== null) return compiled;
 
@@ -38,7 +39,7 @@ export default class CompilableTemplate<S extends SymbolTable, Specifier> implem
     let { referrer } = containingLayout;
     let { program, resolver, macros, asPartial, Builder } = options;
 
-    let builder = new Builder(program, resolver, referrer, macros, containingLayout, asPartial);
+    let builder = new Builder(program, resolver, referrer, macros, containingLayout, asPartial, stdLib);
 
     for (let i = 0; i < statements.length; i++) {
       this.statementCompiler.compile(statements[i], builder);

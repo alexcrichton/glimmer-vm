@@ -73,6 +73,11 @@ export interface BundleCompilationResult {
   table: ExternalModuleTable;
 }
 
+export interface STDLib {
+  main: VMHandle;
+  guardedAppend: VMHandle;
+}
+
 /**
  * The BundleCompiler is used to compile all of the component templates in a
  * Glimmer program into binary bytecode.
@@ -138,6 +143,19 @@ export default class BundleCompiler<Meta = {}> {
     this.compilableTemplates.set(locator, template);
   }
 
+  compileSTDLib(): STDLib {
+    let builder = new SimpleOpcodeBuilder();
+    builder.main();
+    let main = builder.commit(this.program.heap, 0);
+    let locator = { module: '@glimmer/std', name: '' };
+    let { program, resolver, referrer, macros } = this.compileOptions(locator);
+    let block = this.preprocess(null, '');
+    let eagerBuilder = new EagerOpcodeBuilder(program, resolver, referrer, macros, {block, referrer: null}, false);
+    eagerBuilder.builtInGuardedAppend();
+    let guardedAppend = eagerBuilder.commit(program.heap, 0);
+    return { main, guardedAppend };
+  }
+
   /**
    * Compiles all of the templates added to the bundle. Once compilation
    * completes, the results of the compilation are returned, which includes
@@ -145,16 +163,14 @@ export default class BundleCompiler<Meta = {}> {
    * data segment.
    */
   compile(): BundleCompilationResult {
-    let builder = new SimpleOpcodeBuilder();
-    builder.main();
-    let main = builder.commit(this.program.heap, 0);
+    let stdLib = this.compileSTDLib();
+    let { main } = stdLib;
 
     this.compilableTemplates.forEach((_, locator) => {
-      this.compileTemplate(locator);
+      this.compileTemplate(locator, stdLib);
     });
 
     let { heap, constants } = this.program;
-
     return {
       main: main as Recast<Unique<"Handle">, number>,
       heap: heap.capture() as SerializedHeap,
@@ -195,7 +211,7 @@ export default class BundleCompiler<Meta = {}> {
    * Performs the actual compilation of the template identified by the passed
    * locator into the Program. Returns the VM handle for the compiled template.
    */
-  protected compileTemplate(locator: TemplateLocator<Meta>): VMHandle {
+  protected compileTemplate(locator: TemplateLocator<Meta>, stdLib: STDLib): VMHandle {
     let handle = this.table.vmHandleByModuleLocator.get(locator) as Recast<
       number,
       VMHandle
@@ -207,7 +223,7 @@ export default class BundleCompiler<Meta = {}> {
       `Can't compile a template that wasn't already added to the bundle (${locator.name} @ ${locator.module})`
     );
 
-    handle = compilableTemplate.compile();
+    handle = compilableTemplate.compile(stdLib);
 
     this.table.byVMHandle.set(handle as Recast<VMHandle, number>, locator);
     this.table.vmHandleByModuleLocator.set(locator, handle as Recast<

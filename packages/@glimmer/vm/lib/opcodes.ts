@@ -199,6 +199,16 @@ export const enum Op {
   Load,
 
   /**
+   * Operation: Load an immediate value into a register
+   * Format:
+   *   (LoadSerializable register:u32, offset:u32)
+   * Operand Stack:
+   *   ... →
+   *   ...
+   */
+  LoadSerializable,
+
+  /**
    * Operation: Fetch a value from a register
    * Format:
    *   (Fetch register:u32)

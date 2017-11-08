@@ -37,6 +37,7 @@ import {
   ComponentBuilder
 } from './wrapped-component';
 import { InstructionEncoder } from "@glimmer/encoder";
+import { STDLib } from "@glimmer/bundle-compiler";
 
 export type Label = string;
 
@@ -94,7 +95,8 @@ export interface OpcodeBuilderConstructor {
       meta: Opaque,
       macros: Macros,
       containingLayout: ParsedLayout,
-      asPartial: boolean): OpcodeBuilder<Specifier>;
+      asPartial: boolean,
+      stdLib?: STDLib): OpcodeBuilder<Specifier>;
 }
 
 export class SimpleOpcodeBuilder {
@@ -138,8 +140,8 @@ export class SimpleOpcodeBuilder {
     this.invokePreparedComponent(false);
   }
 
-  dynamicContent(isTrusting: boolean) {
-    this.push(Op.DynamicContent, isTrusting ? 1 : 0);
+  dynamicContent() {
+    this.push(Op.DynamicContent);
   }
 
   beginComponentTransaction() {
@@ -287,7 +289,8 @@ export abstract class OpcodeBuilder<Locator> extends SimpleOpcodeBuilder {
     public referrer: Locator,
     public macros: Macros,
     public containingLayout: ParsedLayout,
-    public asPartial: boolean
+    public asPartial: boolean,
+    protected stdLib?: STDLib
   ) {
     super();
     this.constants = program.constants;
@@ -337,8 +340,12 @@ export abstract class OpcodeBuilder<Locator> extends SimpleOpcodeBuilder {
     this.push(Op.PushComponentDefinition, this.constants.handle(handle));
   }
 
-  pushDynamicComponentManager(referrer: Locator) {
-    this.push(Op.PushDynamicComponentManager, this.constants.serializable(referrer));
+  loadSerializable(referrer: Locator) {
+    this.push(Op.LoadSerializable, this.constants.serializable(referrer));
+  }
+
+  pushDynamicComponentManager() {
+    this.push(Op.PushDynamicComponentManager);
   }
 
   // partial
@@ -710,23 +717,19 @@ export abstract class OpcodeBuilder<Locator> extends SimpleOpcodeBuilder {
     this.popFrame();
   }
 
-  guardedAppend(expression: WireFormat.Expression, trusting: boolean) {
+  builtInGuardedAppend() {
+    this.dup();
+
     this.startLabels();
 
-    this.pushFrame();
-
-    this.returnTo('END');
-
-    this.expr(expression);
-
-    this.dup();
     this.isComponent();
 
     this.enter(2);
 
     this.jumpUnless('ELSE');
 
-    this.pushDynamicComponentManager(this.referrer);
+    this.pushDynamicComponentManager();
+
     this.invokeComponent(null, null, null, false, null, null);
 
     this.exit();
@@ -735,17 +738,67 @@ export abstract class OpcodeBuilder<Locator> extends SimpleOpcodeBuilder {
 
     this.label('ELSE');
 
-    this.dynamicContent(trusting);
+    this.dynamicContent();
 
     this.exit();
 
     this.return();
+    this.stopLabels();
+  }
+
+  guardedAppend(expression: WireFormat.Expression, trusting: boolean) {
+    this.startLabels();
+
+    this.pushFrame();
+
+    this.returnTo('END');
+
+    if (this.stdLib) {
+      this.primitive(!!trusting);
+      this.load(Register.t0);
+      this.loadSerializable(this.referrer);
+      this.expr(expression);
+      this.primitive(this.stdLib.guardedAppend as Recast<VMHandle, number>);
+      this.invokeVirtual();
+    } else {
+
+      this.expr(expression);
+
+      this.dup();
+
+      this.isComponent();
+
+      this.enter(2);
+
+      this.jumpUnless('ELSE');
+
+      this.loadSerializable(this.referrer);
+      this.pushDynamicComponentManager();
+
+      this.invokeComponent(null, null, null, false, null, null);
+
+      this.exit();
+
+      this.return();
+
+      this.label('ELSE');
+
+      this.primitive(!!trusting);
+      this.load(Register.t0);
+
+      this.dynamicContent();
+
+      this.exit();
+
+      this.return();
+    }
 
     this.label('END');
 
     this.popFrame();
 
     this.stopLabels();
+
   }
 
   yield(to: number, params: Option<WireFormat.Core.Params>) {
@@ -916,7 +969,8 @@ export abstract class OpcodeBuilder<Locator> extends SimpleOpcodeBuilder {
 
     this.jumpUnless('ELSE');
 
-    this.pushDynamicComponentManager(this.referrer);
+    this.loadSerializable(this.referrer);
+    this.pushDynamicComponentManager();
     this.invokeComponent(null, params, hash, synthetic, block, inverse);
 
     this.label('ELSE');
@@ -1022,7 +1076,7 @@ export class LazyOpcodeBuilder<Specifier> extends OpcodeBuilder<Specifier> {
 
 export class EagerOpcodeBuilder<Specifier> extends OpcodeBuilder<Specifier> {
   pushBlock(block: Option<ICompilableTemplate<BlockSymbolTable>>): void {
-    let handle = block ? block.compile() as Recast<VMHandle, number> : null;
+    let handle = block ? block.compile(this.stdLib) as Recast<VMHandle, number> : null;
     this.primitive(handle);
   }
 
@@ -1032,7 +1086,7 @@ export class EagerOpcodeBuilder<Specifier> extends OpcodeBuilder<Specifier> {
 
   pushLayout(layout: Option<CompilableTemplate<ProgramSymbolTable, Specifier>>): void {
     if (layout) {
-      this.primitive(layout.compile() as Recast<VMHandle, number>);
+      this.primitive(layout.compile(this.stdLib) as Recast<VMHandle, number>);
     } else {
       this.primitive(null);
     }
@@ -1041,7 +1095,7 @@ export class EagerOpcodeBuilder<Specifier> extends OpcodeBuilder<Specifier> {
   resolveLayout() {}
 
   invokeStatic(compilable: ICompilableTemplate<SymbolTable>): void {
-    let handle = compilable.compile();
+    let handle = compilable.compile(this.stdLib);
     this.push(Op.InvokeStatic, handle as Recast<VMHandle, number>);
   }
 }

@@ -98,6 +98,11 @@ export interface PartialComponentDefinition {
   manager: InternalComponentManager;
 }
 
+APPEND_OPCODES.add(Op.LoadSerializable, (vm, { op1: referrer }) => {
+  let ref = vm.constants.getSerializable(referrer);
+  vm.loadValue(Register.t1, ref);
+});
+
 APPEND_OPCODES.add(Op.IsComponent, vm => {
   let stack = vm.stack;
   let ref = check(stack.pop(), CheckReference);
@@ -134,15 +139,17 @@ APPEND_OPCODES.add(Op.PushComponentDefinition, (vm, { op1: handle }) => {
   expectStackChange(vm.stack, 1, 'PushComponentDefinition');
 });
 
-APPEND_OPCODES.add(Op.PushDynamicComponentManager, (vm, { op1: _meta }) => {
+APPEND_OPCODES.add(Op.PushDynamicComponentManager, vm => {
   let stack = vm.stack;
-
   let component = check(stack.pop(), CheckPathReference).value();
+  let meta = vm.fetchValue(Register.t1);
+
+  vm.loadValue(Register.t1, null); // Clear the temp register
+
   let definition: ComponentDefinition | CurriedComponentDefinition;
 
   if (typeof component === 'string') {
-    let { constants, constants: { resolver } } = vm;
-    let meta = constants.getSerializable<TemplateMeta>(_meta);
+    let { constants: { resolver } } = vm;
     let resolvedDefinition = resolveComponent(resolver, component, meta);
 
     definition = expect(resolvedDefinition, `Could not find a component named "${component}"`);
