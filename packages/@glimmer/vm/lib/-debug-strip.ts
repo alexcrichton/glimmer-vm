@@ -305,7 +305,7 @@ OPCODE_METADATA(Op.PushComponentDefinition, {
   stackChange: 1,
 });
 
-OPCODE_METADATA(Op.PushDynamicComponentManager, {
+OPCODE_METADATA(Op.PushCurriedComponent, {
   name: 'PushDynamicComponentManager',
   ops: [Serializable('meta')],
   operands: 1
@@ -427,6 +427,16 @@ OPCODE_METADATA(Op.DynamicContent, {
   ops: [Bool('trusting')],
   operands: 1,
   stackChange: -1
+});
+
+OPCODE_METADATA(Op.ResolveDynamicComponent, {
+  name: 'ResolveDynamicComponentManager',
+  ops: [Serializable('meta')],
+  operands: 1
+});
+
+OPCODE_METADATA(Op.PushDynamicComponentInstance, {
+  name: 'PushDynamicComponentManager'
 });
 
 OPCODE_METADATA(Op.OpenElement, {
