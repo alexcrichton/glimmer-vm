@@ -27,7 +27,7 @@ module.exports = function(_options) {
   });
 
   let wasmTree = new Rust('packages/@glimmer/low-level/rust', {
-    generateWrapper: true,
+    generateAsyncWrapper: true,
     generateTypescript: true,
   });
 

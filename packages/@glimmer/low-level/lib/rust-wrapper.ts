@@ -92,7 +92,14 @@ const imports = {
   },
 };
 
-export const wasm: Exports = instantiate(imports);
+export let wasm: Exports;
+
+export const booted = new Promise((res) => {
+  instantiate(imports).then((m) => {
+    wasm = m;
+    res();
+  });
+});
 
 // Wrap a few functions to set our globals in this module above so while Rust is
 // executing we have access to the various JS objects passed in.
